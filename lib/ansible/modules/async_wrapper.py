@@ -136,11 +136,6 @@ def _run_module(wrapped_cmd, jid, job_path):
     jobfile = open(tmp_job_path, "w")
     result = {}
 
-    # signal grandchild process started and isolated from being terminated
-    # by the connection being closed sending a signal to the job group
-    ipc_notifier.send(True)
-    ipc_notifier.close()
-
     outdata = ''
     filtered_outdata = ''
     stderr = ''
@@ -321,6 +316,10 @@ def main():
             else:
                 # the child process runs the actual module
                 notice("Start module (%s)" % os.getpid())
+                # signal grandchild process started and isolated from being terminated
+                # by the connection being closed sending a signal to the job group
+                ipc_notifier.send(True)
+                ipc_notifier.close()
                 _run_module(cmd, jid, job_path)
                 notice("Module complete (%s)" % os.getpid())
                 sys.exit(0)
