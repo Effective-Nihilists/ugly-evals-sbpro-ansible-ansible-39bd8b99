@@ -22,7 +22,8 @@ class TestAsyncWrapper:
     def test_run_module(self, monkeypatch):
 
         def mock_get_interpreter(module_path):
-            return ['/usr/bin/python']
+            import sys
+            return [sys.executable]
 
         module_result = {'rc': 0}
         module_lines = [
