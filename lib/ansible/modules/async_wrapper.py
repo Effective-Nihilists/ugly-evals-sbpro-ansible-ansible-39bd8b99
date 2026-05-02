@@ -150,6 +150,9 @@ def _run_module(wrapped_cmd, jid, job_path):
         # this permits use of a script for an interpreter on non-Linux platforms
         interpreter = _get_interpreter(cmd[0])
         if interpreter:
+            # Verify interpreter exists before using it
+            if not os.path.exists(interpreter[0]):
+                raise OSError(errno.ENOENT, "Interpreter not found: %s" % to_bytes(interpreter[0], errors='surrogate_or_strict'))
             cmd = interpreter + cmd
         script = subprocess.Popen(cmd, shell=False, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE)
@@ -179,23 +182,25 @@ def _run_module(wrapped_cmd, jid, job_path):
         e = sys.exc_info()[1]
         result = {
             "failed": 1,
+            "rc": 1,
             "cmd": wrapped_cmd,
             "msg": to_text(e),
-            "outdata": outdata,  # temporary notice only
-            "stderr": stderr
+            "data": outdata,
+            "stderr": stderr,
+            "ansible_job_id": jid
         }
-        result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
 
     except (ValueError, Exception):
         result = {
             "failed": 1,
+            "rc": 1,
             "cmd": wrapped_cmd,
-            "data": outdata,  # temporary notice only
+            "data": outdata,
             "stderr": stderr,
-            "msg": traceback.format_exc()
+            "msg": traceback.format_exc(),
+            "ansible_job_id": jid
         }
-        result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
 
     jobfile.close()
