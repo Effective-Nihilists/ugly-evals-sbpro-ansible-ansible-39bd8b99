@@ -81,49 +81,67 @@ def _filter_non_json_lines(data, objects_only=False):
     # Filter initial junk
     lines = data.splitlines()
 
-    json_start_line = None
     json_start_offset = None
+    json_start_line = None
     json_end_char = None
+
     for start, line in enumerate(lines):
         line = line.strip()
+
+        # Bare JSON at start of line
         if line.startswith(u'{'):
-            json_start_line = line
             json_start_offset = start
+            json_start_line = line
             json_end_char = u'}'
             break
         elif not objects_only and line.startswith(u'['):
-            json_start_line = line
             json_start_offset = start
+            json_start_line = line
             json_end_char = u']'
             break
-        elif (line.startswith(u"'") or line.startswith(u'"')) and len(line) > 1:
-            quote_char = line[0]
-            unquoted = line[1:-1]
-            if unquoted.startswith(u'{'):
-                json_start_line = unquoted
+
+        # JSON inside quoted string (e.g., print('{"rc": 0}'))
+        # Scan each line for first { or [ inside quotes
+        start_quote = None
+        json_pos = None
+        for i, c in enumerate(line):
+            if start_quote is None:
+                if c == u"'" or c == u'"':
+                    start_quote = c
+            else:
+                if c == u'\\':
+                    i += 1  # skip escaped char
+                elif c == start_quote:
+                    start_quote = None  # end of string
+                elif c == u'{' and json_pos is None:
+                    json_pos = i
+                elif c == u'[' and json_pos is None and not objects_only:
+                    json_pos = i
+
+        if json_pos is not None:
+            # Extract JSON from quoted string
+            json_start_pos = json_pos
+            json_end_char = u'}' if line[json_pos] == u'{' else u']'
+            json_end_pos = None
+            for i in range(json_pos, len(line)):
+                if line[i] == json_end_char:
+                    json_end_pos = i + 1
+                    break
+            if json_end_pos is not None:
                 json_start_offset = start
-                json_end_char = u'}'
+                json_start_line = line[json_start_pos:json_end_pos]
+                json_end_char = u'}' if line[json_start_pos] == u'{' else u']'
                 break
-            elif not objects_only and unquoted.startswith(u'['):
-                json_start_line = unquoted
-                json_start_offset = start
-                json_end_char = u']'
-                break
-    else:
+
+    if json_start_offset is None:
         raise ValueError('No start of json char found')
 
     # Filter trailing junk
     lines = lines[json_start_offset:]
 
-    # If the first line was a quoted string, check if the whole JSON is one line
-    if json_start_line != lines[0].strip():
-        # Quoted single-line case: the entire JSON is just the first line
-        start_stripped = lines[0].strip()
-        quote_char = start_stripped[0]
-        end_quote_char = quote_char
-        if len(start_stripped) > 1 and start_stripped[-1] == end_quote_char:
-            filtered = start_stripped[1:-1]
-            return (filtered, warnings)
+    # Replace the first line with the extracted JSON content so trailing detection works
+    if json_start_line is not None and lines:
+        lines[0] = json_start_line
 
     for reverse_end_offset, line in enumerate(reversed(lines)):
         if line.strip().endswith(json_end_char):
@@ -211,26 +229,25 @@ def _run_module(wrapped_cmd, jid, job_path):
             result['stderr'] = stderr
         jobfile.write(json.dumps(result))
 
-    except (OSError, IOError):
-        e = sys.exc_info()[1]
+    except (OSError, IOError) as e:
         result = {
             "failed": 1,
             "rc": 1,
             "cmd": wrapped_cmd,
             "msg": to_text(e),
-            "outdata": outdata,  # temporary notice only
-            "stderr": stderr
+            "outdata": outdata if 'outdata' in dir() else '',  # temporary notice only
+            "stderr": stderr if 'stderr' in dir() else ''
         }
         result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
 
-    except (ValueError, Exception):
+    except (ValueError, Exception) as e:
         result = {
             "failed": 1,
             "rc": 1,
             "cmd": wrapped_cmd,
-            "data": outdata,  # temporary notice only
-            "stderr": stderr,
+            "data": outdata if 'outdata' in dir() else '',  # temporary notice only
+            "stderr": stderr if 'stderr' in dir() else '',
             "msg": traceback.format_exc()
         }
         result['ansible_job_id'] = jid

@@ -1,7 +1,12 @@
-# This code is part of Ansible, but is an independent component.
-# This particular file snippet, and this file snippet only, is BSD licensed.
-# Modules you write using this snippet, which is embedded dynamically by Ansible
-# still belong to the author of the module, and may assign their own license
+# (c) 2012-2014, Michael DeHaan <michael.dehaan@gmail.com>
+#
+# This file is part of Ansible
+#
+# Ansible is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
 # to the complete work.
 #
 # Redistribution and use in source and binary forms, with or without modification,
@@ -46,48 +51,65 @@ def _filter_non_json_lines(data, objects_only=False):
     # Filter initial junk
     lines = data.splitlines()
 
-    json_start_line = None
     json_start_offset = None
+    json_start_line = None
     json_end_char = None
+
     for start, line in enumerate(lines):
         line = line.strip()
+
+        # Bare JSON at start of line
         if line.startswith(u'{'):
-            json_start_line = line
             json_start_offset = start
+            json_start_line = line
             json_end_char = u'}'
             break
         elif not objects_only and line.startswith(u'['):
-            json_start_line = line
             json_start_offset = start
+            json_start_line = line
             json_end_char = u']'
             break
-        elif (line.startswith(u"'") or line.startswith(u'"')) and len(line) > 1:
-            unquoted = line[1:-1]
-            if unquoted.startswith(u'{'):
-                json_start_line = unquoted
+
+        # JSON inside quoted string (e.g., print('{"rc": 0}'))
+        start_quote = None
+        json_pos = None
+        for i, c in enumerate(line):
+            if start_quote is None:
+                if c == u"'" or c == u'"':
+                    start_quote = c
+            else:
+                if c == u'\\':
+                    i += 1
+                elif c == start_quote:
+                    start_quote = None
+                elif c == u'{' and json_pos is None:
+                    json_pos = i
+                elif c == u'[' and json_pos is None and not objects_only:
+                    json_pos = i
+
+        if json_pos is not None:
+            json_start_pos = json_pos
+            json_end_char = u'}' if line[json_pos] == u'{' else u']'
+            json_end_pos = None
+            for i in range(json_pos, len(line)):
+                if line[i] == json_end_char:
+                    json_end_pos = i + 1
+                    break
+            if json_end_pos is not None:
                 json_start_offset = start
-                json_end_char = u'}'
+                json_start_line = line[json_start_pos:json_end_pos]
+                json_end_char = u'}' if line[json_start_pos] == u'{' else u']'
                 break
-            elif not objects_only and unquoted.startswith(u'['):
-                json_start_line = unquoted
-                json_start_offset = start
-                json_end_char = u']'
-                break
-    else:
+
+    if json_start_offset is None:
         raise ValueError('No start of json char found')
 
     # Filter trailing junk
     lines = lines[json_start_offset:]
 
-    # If the first line was a quoted string, check if the whole JSON is one line
-    if json_start_line != lines[0].strip():
-        # Quoted single-line case: the entire JSON is just the first line
-        start_stripped = lines[0].strip()
-        quote_char = start_stripped[0]
-        end_quote_char = quote_char
-        if len(start_stripped) > 1 and start_stripped[-1] == end_quote_char:
-            filtered = start_stripped[1:-1]
-            return (filtered, warnings)
+    # Replace the first line with the extracted JSON content so trailing detection works
+    if json_start_line is not None and lines:
+        lines[0] = json_start_line
 
     for reverse_end_offset, line in enumerate(reversed(lines)):
         if line.strip().endswith(json_end_char):
@@ -96,8 +118,6 @@ def _filter_non_json_lines(data, objects_only=False):
         raise ValueError('No end of json char found')
 
     if reverse_end_offset > 0:
-        # Trailing junk is uncommon and can point to things the user might
-        # want to change.  So print a warning if we find any
         trailing_junk = lines[len(lines) - reverse_end_offset:]
         for line in trailing_junk:
             if line.strip():
