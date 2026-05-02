@@ -43,8 +43,7 @@ def daemonize_self():
         if pid > 0:
             # exit first parent
             sys.exit(0)
-    except OSError:
-        e = sys.exc_info()[1]
+    except OSError as e:
         sys.exit("fork #1 failed: %d (%s)\n" % (e.errno, e.strerror))
 
     # decouple from parent environment (does not chdir / to keep the directory context the same as for non async tasks)
@@ -57,8 +56,7 @@ def daemonize_self():
         if pid > 0:
             # print "Daemon PID %d" % pid
             sys.exit(0)
-    except OSError:
-        e = sys.exc_info()[1]
+    except OSError as e:
         sys.exit("fork #2 failed: %d (%s)\n" % (e.errno, e.strerror))
 
     dev_null = open('/dev/null', 'w')
