@@ -31,6 +31,10 @@ syslog.syslog(syslog.LOG_NOTICE, 'Invoked with %s' % " ".join(sys.argv[1:]))
 # pipe for communication between forked process and parent
 ipc_watcher, ipc_notifier = multiprocessing.Pipe()
 
+# module level job_path so it can be referenced by helper functions and
+# overridden in tests via monkeypatching
+job_path = None
+
 
 def notice(msg):
     syslog.syslog(syslog.LOG_NOTICE, msg)
@@ -126,7 +130,7 @@ def _make_temp_dir(path):
             raise
 
 
-def _run_module(wrapped_cmd, jid, job_path):
+def _run_module(wrapped_cmd, jid):
 
     tmp_job_path = job_path + ".tmp"
     jobfile = open(tmp_job_path, "w")
@@ -173,6 +177,7 @@ def _run_module(wrapped_cmd, jid, job_path):
 
         if stderr:
             result['stderr'] = stderr
+        result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
 
     except (OSError, IOError):
@@ -182,9 +187,9 @@ def _run_module(wrapped_cmd, jid, job_path):
             "cmd": wrapped_cmd,
             "msg": to_text(e),
             "outdata": outdata,  # temporary notice only
-            "stderr": stderr
+            "stderr": stderr,
+            "ansible_job_id": jid,
         }
-        result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
 
     except (ValueError, Exception):
@@ -193,9 +198,9 @@ def _run_module(wrapped_cmd, jid, job_path):
             "cmd": wrapped_cmd,
             "data": outdata,  # temporary notice only
             "stderr": stderr,
-            "msg": traceback.format_exc()
+            "msg": traceback.format_exc(),
+            "ansible_job_id": jid,
         }
-        result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
 
     jobfile.close()
@@ -203,6 +208,8 @@ def _run_module(wrapped_cmd, jid, job_path):
 
 
 def main():
+    global job_path
+
     if len(sys.argv) < 5:
         print(json.dumps({
             "failed": True,
@@ -239,6 +246,7 @@ def main():
     except Exception as e:
         print(json.dumps({
             "failed": 1,
+            "ansible_job_id": jid,
             "msg": "could not create: %s - %s" % (jobdir, to_text(e)),
             "exception": to_text(traceback.format_exc()),
         }))
@@ -313,6 +321,21 @@ def main():
                         time.sleep(1)
                         if not preserve_tmp:
                             shutil.rmtree(os.path.dirname(wrapped_module), True)
+                        # write a structured timeout result so consumers see a
+                        # consistent JSON object including the child PID
+                        try:
+                            tmp_job_path = job_path + ".tmp"
+                            with open(tmp_job_path, "w") as jobfile:
+                                jobfile.write(json.dumps({
+                                    "failed": 1,
+                                    "finished": 1,
+                                    "ansible_job_id": jid,
+                                    "child_pid": sub_pid,
+                                    "msg": "async task timed out after %s seconds" % time_limit,
+                                }))
+                            os.rename(tmp_job_path, job_path)
+                        except (OSError, IOError):
+                            pass
                         sys.exit(0)
                 notice("Done in kid B.")
                 if not preserve_tmp:
@@ -321,7 +344,7 @@ def main():
             else:
                 # the child process runs the actual module
                 notice("Start module (%s)" % os.getpid())
-                _run_module(cmd, jid, job_path)
+                _run_module(cmd, jid)
                 notice("Module complete (%s)" % os.getpid())
                 sys.exit(0)
 
@@ -334,8 +357,10 @@ def main():
         e = sys.exc_info()[1]
         notice("error: %s" % e)
         print(json.dumps({
-            "failed": True,
-            "msg": "FATAL ERROR: %s" % e
+            "failed": 1,
+            "ansible_job_id": jid,
+            "msg": "FATAL ERROR: %s" % e,
+            "exception": to_text(traceback.format_exc()),
         }))
         sys.exit(1)
 
