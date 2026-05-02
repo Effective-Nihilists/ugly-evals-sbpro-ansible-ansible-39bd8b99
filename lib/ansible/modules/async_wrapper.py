@@ -69,12 +69,12 @@ def daemonize_self():
 
 # NB: this function copied from module_utils/json_utils.py. Ensure any changes are propagated there.
 # FUTURE: AnsibleModule-ify this module so it's Ansiballz-compatible and can use the module_utils copy of this function.
-def _filter_non_json_lines(data):
+def _filter_non_json_lines(data, objects_only=False):
     '''
     Used to filter unrelated output around module JSON output, like messages from
     tcagetattr, or where dropbear spews MOTD on every single command (which is nuts).
 
-    Filters leading lines before first line-starting occurrence of '{', and filter all
+    Filters leading lines before first line-starting occurrence of '{' or '[', and filter all
     trailing lines after matching close character (working from the bottom of output).
     Also handles lines that are quoted JSON strings (e.g., from print('{"rc": 0}')).
     '''
@@ -93,7 +93,7 @@ def _filter_non_json_lines(data):
             json_start_offset = start
             json_end_char = u'}'
             break
-        elif line.startswith(u'['):
+        elif not objects_only and line.startswith(u'['):
             json_start_line = line
             json_start_offset = start
             json_end_char = u']'
@@ -106,7 +106,7 @@ def _filter_non_json_lines(data):
                 json_start_offset = start
                 json_end_char = u'}'
                 break
-            elif unquoted.startswith(u'['):
+            elif not objects_only and unquoted.startswith(u'['):
                 json_start_line = unquoted
                 json_start_offset = start
                 json_end_char = u']'
@@ -137,7 +137,10 @@ def _filter_non_json_lines(data):
         # Trailing junk is uncommon and can point to things the user might
         # want to change.  So print a warning if we find any
         trailing_junk = lines[len(lines) - reverse_end_offset:]
-        warnings.append('Module invocation had junk after the JSON data: %s' % '\n'.join(trailing_junk))
+        for line in trailing_junk:
+            if line.strip():
+                warnings.append('Module invocation had junk after the JSON data: %s' % '\n'.join(trailing_junk))
+                break
 
     lines = lines[:(len(lines) - reverse_end_offset)]
 
@@ -214,6 +217,7 @@ def _run_module(wrapped_cmd, jid, job_path):
         e = sys.exc_info()[1]
         result = {
             "failed": 1,
+            "rc": 1,
             "cmd": wrapped_cmd,
             "msg": to_text(e),
             "outdata": outdata,  # temporary notice only
@@ -225,6 +229,7 @@ def _run_module(wrapped_cmd, jid, job_path):
     except (ValueError, Exception):
         result = {
             "failed": 1,
+            "rc": 1,
             "cmd": wrapped_cmd,
             "data": outdata,  # temporary notice only
             "stderr": stderr,

@@ -39,28 +39,58 @@ def _filter_non_json_lines(data, objects_only=False):
 
     Filters leading lines before first line-starting occurrence of '{' or '[', and filter all
     trailing lines after matching close character (working from the bottom of output).
+    Also handles lines that are quoted JSON strings (e.g., from print('{"rc": 0}')).
     '''
     warnings = []
 
     # Filter initial junk
     lines = data.splitlines()
 
+    json_start_line = None
+    json_start_offset = None
+    json_end_char = None
     for start, line in enumerate(lines):
         line = line.strip()
         if line.startswith(u'{'):
-            endchar = u'}'
+            json_start_line = line
+            json_start_offset = start
+            json_end_char = u'}'
             break
         elif not objects_only and line.startswith(u'['):
-            endchar = u']'
+            json_start_line = line
+            json_start_offset = start
+            json_end_char = u']'
             break
+        elif (line.startswith(u"'") or line.startswith(u'"')) and len(line) > 1:
+            unquoted = line[1:-1]
+            if unquoted.startswith(u'{'):
+                json_start_line = unquoted
+                json_start_offset = start
+                json_end_char = u'}'
+                break
+            elif not objects_only and unquoted.startswith(u'['):
+                json_start_line = unquoted
+                json_start_offset = start
+                json_end_char = u']'
+                break
     else:
         raise ValueError('No start of json char found')
 
     # Filter trailing junk
-    lines = lines[start:]
+    lines = lines[json_start_offset:]
+
+    # If the first line was a quoted string, check if the whole JSON is one line
+    if json_start_line != lines[0].strip():
+        # Quoted single-line case: the entire JSON is just the first line
+        start_stripped = lines[0].strip()
+        quote_char = start_stripped[0]
+        end_quote_char = quote_char
+        if len(start_stripped) > 1 and start_stripped[-1] == end_quote_char:
+            filtered = start_stripped[1:-1]
+            return (filtered, warnings)
 
     for reverse_end_offset, line in enumerate(reversed(lines)):
-        if line.strip().endswith(endchar):
+        if line.strip().endswith(json_end_char):
             break
     else:
         raise ValueError('No end of json char found')
