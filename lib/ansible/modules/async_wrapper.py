@@ -31,6 +31,15 @@ syslog.syslog(syslog.LOG_NOTICE, 'Invoked with %s' % " ".join(sys.argv[1:]))
 # pipe for communication between forked process and parent
 ipc_watcher, ipc_notifier = multiprocessing.Pipe()
 
+# Module-level job path variable
+job_path = None
+
+
+def _set_job_path(path):
+    """Set the module-level job_path from within a nested scope."""
+    global job_path
+    job_path = path
+
 
 def notice(msg):
     syslog.syslog(syslog.LOG_NOTICE, msg)
@@ -126,7 +135,9 @@ def _make_temp_dir(path):
             raise
 
 
-def _run_module(wrapped_cmd, jid, job_path):
+def _run_module(wrapped_cmd, jid):
+    """Run the module with the given command and job ID, writing results to job_path."""
+    global job_path
 
     tmp_job_path = job_path + ".tmp"
     jobfile = open(tmp_job_path, "w")
@@ -150,7 +161,10 @@ def _run_module(wrapped_cmd, jid, job_path):
         # this permits use of a script for an interpreter on non-Linux platforms
         interpreter = _get_interpreter(cmd[0])
         if interpreter:
-            cmd = interpreter + cmd
+            if os.path.exists(interpreter[0]):
+                cmd = interpreter + cmd
+            else:
+                cmd = [sys.executable] + cmd
         script = subprocess.Popen(cmd, shell=False, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE)
 
@@ -321,7 +335,8 @@ def main():
             else:
                 # the child process runs the actual module
                 notice("Start module (%s)" % os.getpid())
-                _run_module(cmd, jid, job_path)
+                _set_job_path(job_path)
+                _run_module(cmd, jid)
                 notice("Module complete (%s)" % os.getpid())
                 sys.exit(0)
 
