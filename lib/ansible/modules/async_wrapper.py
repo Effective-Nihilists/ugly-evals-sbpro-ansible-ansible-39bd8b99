@@ -155,7 +155,7 @@ def _run_module(wrapped_cmd, jid, job_path):
             if os.path.exists(interpreter[0]):
                 cmd = interpreter + cmd
             else:
-                cmd.insert(0, interpreter[0].decode('utf-8'))
+                raise OSError(errno.ENOENT, os.strerror(errno.ENOENT) + ': ' + interpreter[0].decode('utf-8'))
         script = subprocess.Popen(cmd, shell=False, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE)
 
