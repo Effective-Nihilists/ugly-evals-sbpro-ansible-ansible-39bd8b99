@@ -234,6 +234,7 @@ def main():
     async_dir = os.environ.get('ANSIBLE_ASYNC_DIR', '~/.ansible_async')
 
     # setup job output directory
+    global job_path
     jobdir = os.path.expanduser(async_dir)
     job_path = os.path.join(jobdir, jid)
 
@@ -324,7 +325,6 @@ def main():
             else:
                 # the child process runs the actual module
                 notice("Start module (%s)" % os.getpid())
-                job_path = job_path
                 _run_module(cmd, jid)
                 notice("Module complete (%s)" % os.getpid())
                 sys.exit(0)
