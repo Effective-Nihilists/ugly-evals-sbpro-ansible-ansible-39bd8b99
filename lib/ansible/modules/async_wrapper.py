@@ -45,7 +45,11 @@ def daemonize_self():
             sys.exit(0)
     except OSError:
         e = sys.exc_info()[1]
-        sys.exit("fork #1 failed: %d (%s)\n" % (e.errno, e.strerror))
+        print(json.dumps({
+            "failed": True,
+            "msg": "fork #1 failed: %d (%s)" % (e.errno, e.strerror)
+        }))
+        sys.exit(1)
 
     # decouple from parent environment (does not chdir / to keep the directory context the same as for non async tasks)
     os.setsid()
@@ -59,7 +63,11 @@ def daemonize_self():
             sys.exit(0)
     except OSError:
         e = sys.exc_info()[1]
-        sys.exit("fork #2 failed: %d (%s)\n" % (e.errno, e.strerror))
+        print(json.dumps({
+            "failed": True,
+            "msg": "fork #2 failed: %d (%s)" % (e.errno, e.strerror)
+        }))
+        sys.exit(1)
 
     dev_null = open('/dev/null', 'w')
     os.dup2(dev_null.fileno(), sys.stdin.fileno())
@@ -311,6 +319,15 @@ def main():
                         os.killpg(sub_pid, signal.SIGKILL)
                         notice("Sent kill to group %s " % sub_pid)
                         time.sleep(1)
+                        result = {
+                            "failed": True,
+                            "msg": "timed out waiting for %s" % sub_pid,
+                            "ansible_job_id": jid
+                        }
+                        tmp_job_path = job_path + ".tmp"
+                        with open(tmp_job_path, 'w') as jobfile:
+                            jobfile.write(json.dumps(result))
+                        os.rename(tmp_job_path, job_path)
                         if not preserve_tmp:
                             shutil.rmtree(os.path.dirname(wrapped_module), True)
                         sys.exit(0)
