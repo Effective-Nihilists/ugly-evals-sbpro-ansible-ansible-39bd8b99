@@ -200,6 +200,7 @@ def _run_module(wrapped_cmd, jid, job_path):
 
     jobfile.close()
     os.rename(tmp_job_path, job_path)
+    return result
 
 
 def main():
@@ -238,9 +239,10 @@ def main():
         _make_temp_dir(jobdir)
     except Exception as e:
         print(json.dumps({
-            "failed": 1,
+            "failed": True,
             "msg": "could not create: %s - %s" % (jobdir, to_text(e)),
             "exception": to_text(traceback.format_exc()),
+            "ansible_job_id": jid,
         }))
         sys.exit(1)
 
@@ -335,7 +337,8 @@ def main():
         notice("error: %s" % e)
         print(json.dumps({
             "failed": True,
-            "msg": "FATAL ERROR: %s" % e
+            "msg": "FATAL ERROR: %s" % e,
+            "ansible_job_id": jid
         }))
         sys.exit(1)
 
