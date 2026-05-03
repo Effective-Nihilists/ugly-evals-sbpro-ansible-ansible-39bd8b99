@@ -150,6 +150,9 @@ def _run_module(wrapped_cmd, jid, job_path):
         # this permits use of a script for an interpreter on non-Linux platforms
         interpreter = _get_interpreter(cmd[0])
         if interpreter:
+            # If the interpreter binary doesn't exist, fall back to the current Python
+            if not os.path.exists(interpreter[0]):
+                interpreter[0] = to_bytes(sys.executable, errors='surrogate_or_strict')
             cmd = interpreter + cmd
         script = subprocess.Popen(cmd, shell=False, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE)
