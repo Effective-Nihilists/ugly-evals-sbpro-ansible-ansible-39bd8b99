@@ -204,10 +204,11 @@ def _run_module(wrapped_cmd, jid, job_path):
 
 def main():
     if len(sys.argv) < 5:
+    jid = None  # No job ID for usage error
         print(json.dumps({
-            "failed": True,
-            "msg": "usage: async_wrapper <jid> <time_limit> <modulescript> <argsfile> [-preserve_tmp]  "
-                   "Humans, do not call directly!"
+            "failed": 1,
+            "msg": "usage: async_wrapper <jid> <time_limit> <modulescript> <argsfile> [-preserve_tmp]  Humans, do not call directly!",
+            "ansible_job_id": jid
         }))
         sys.exit(1)
 
@@ -334,8 +335,9 @@ def main():
         e = sys.exc_info()[1]
         notice("error: %s" % e)
         print(json.dumps({
-            "failed": True,
-            "msg": "FATAL ERROR: %s" % e
+            "failed": 1,
+            "msg": "FATAL ERROR: %s" % e,
+            "ansible_job_id": jid
         }))
         sys.exit(1)
 
