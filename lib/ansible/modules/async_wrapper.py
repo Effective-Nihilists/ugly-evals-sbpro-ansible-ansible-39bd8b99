@@ -150,7 +150,10 @@ def _run_module(wrapped_cmd, jid, job_path):
         # this permits use of a script for an interpreter on non-Linux platforms
         interpreter = _get_interpreter(cmd[0])
         if interpreter:
-            cmd = interpreter + cmd
+            if os.path.exists(interpreter[0]):
+                cmd = interpreter + cmd
+            else:
+                cmd = [sys.executable] + cmd
         script = subprocess.Popen(cmd, shell=False, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE)
 
@@ -191,7 +194,7 @@ def _run_module(wrapped_cmd, jid, job_path):
         result = {
             "failed": 1,
             "cmd": wrapped_cmd,
-            "data": outdata,  # temporary notice only
+            "outdata": outdata,  # temporary notice only
             "stderr": stderr,
             "msg": traceback.format_exc()
         }
