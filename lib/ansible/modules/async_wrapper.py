@@ -127,6 +127,7 @@ def _make_temp_dir(path):
 
 
 def _run_module(wrapped_cmd, jid, job_path):
+    import sys; print("DEBUG: _run_module called", file=sys.stderr)
 
     tmp_job_path = job_path + ".tmp"
     jobfile = open(tmp_job_path, "w")
