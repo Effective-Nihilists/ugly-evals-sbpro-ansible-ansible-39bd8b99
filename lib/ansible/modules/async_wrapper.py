@@ -45,7 +45,11 @@ def daemonize_self():
             sys.exit(0)
     except OSError:
         e = sys.exc_info()[1]
-        sys.exit("fork #1 failed: %d (%s)\n" % (e.errno, e.strerror))
+        print(json.dumps({
+            "failed": True,
+            "msg": "fork #1 failed: %d (%s)" % (e.errno, e.strerror)
+        }))
+        sys.exit(1)
 
     # decouple from parent environment (does not chdir / to keep the directory context the same as for non async tasks)
     os.setsid()
@@ -59,7 +63,11 @@ def daemonize_self():
             sys.exit(0)
     except OSError:
         e = sys.exc_info()[1]
-        sys.exit("fork #2 failed: %d (%s)\n" % (e.errno, e.strerror))
+        print(json.dumps({
+            "failed": True,
+            "msg": "fork #2 failed: %d (%s)" % (e.errno, e.strerror)
+        }))
+        sys.exit(1)
 
     dev_null = open('/dev/null', 'w')
     os.dup2(dev_null.fileno(), sys.stdin.fileno())
@@ -162,6 +170,8 @@ def _run_module(wrapped_cmd, jid, job_path):
         (filtered_outdata, json_warnings) = _filter_non_json_lines(outdata)
 
         result = json.loads(filtered_outdata)
+
+        result['ansible_job_id'] = jid
 
         if json_warnings:
             # merge JSON junk warnings with any existing module warnings
