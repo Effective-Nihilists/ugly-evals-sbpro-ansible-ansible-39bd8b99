@@ -23,6 +23,9 @@ import multiprocessing
 
 from ansible.module_utils._text import to_text, to_bytes
 
+# module-level variable for the job file path, set by main()
+job_path = None
+
 PY3 = sys.version_info[0] == 3
 
 syslog.openlog('ansible-%s' % os.path.basename(__file__))
