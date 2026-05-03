@@ -148,7 +148,7 @@ def _run_module(wrapped_cmd, jid, job_path):
         cmd = [to_bytes(c, errors='surrogate_or_strict') for c in shlex.split(wrapped_cmd)]
         # call the module interpreter directly (for non-binary modules)
         # this permits use of a script for an interpreter on non-Linux platforms
-        interpreter = _get_interpreter(cmd[0])
+        interpreter = _get_interpreter(shlex.split(wrapped_cmd)[0])
         if interpreter:
             cmd = interpreter + cmd
         script = subprocess.Popen(cmd, shell=False, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
