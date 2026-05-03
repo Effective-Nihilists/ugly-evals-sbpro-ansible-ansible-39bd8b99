@@ -329,6 +329,8 @@ del attr
 _MovedItems._moved_attributes = _moved_attributes
 
 moves = _MovedItems(__name__ + ".moves")
+# Ensure the six.moves subpackage is importable
+from . import moves as _moves_pkg
 _importer._add_module(moves, "moves")
 
 
