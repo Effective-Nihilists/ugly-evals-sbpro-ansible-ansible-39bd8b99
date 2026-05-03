@@ -1,22 +1,26 @@
-# Fix async_wrapper inconsistent JSON output across exit paths
-
 ## Diagnosis
 
-The `async_wrapper` module produces inconsistent JSON output across different exit paths:
+### Symptom
 
-1. **Inconsistent `failed` type**: Some paths use `"failed": 1` (integer), others use `"failed": True` (boolean) — line 180, 192, 240 vs line 336.
+`async_wrapper` produces inconsistent or incomplete JSON output across different exit paths (normal completion, OSError/IOError, ValueError, async dir creation failure, general exception, timeout). This makes automated consumption of results unreliable.
 
-2. **Inconsistent field names**: Error paths use `"outdata"` (line 184) vs `"data"` (line 194) for the same data.
+### Root cause
 
-3. **No structured output on timeout**: When the watcher process kills the child on timeout (lines 309-316), it exits without writing any result to the job file — the initial `{"started": 1}` status remains indefinitely.
+1. **`failed` field uses inconsistent types** — Three error paths use `"failed": 1` (integer):
+   - `_run_module` OSError/IOError handler (line ~180)
+   - `_run_module` ValueError/Exception handler (line ~192)
+   - `main()` async dir creation failure (line ~240)
+   
+   But the general exception handler in `main()` (line ~336) uses `"failed": True` (boolean). Ansible convention expects `failed` to be a boolean True/False, not integer 1/0.
 
-## Plan
+2. **Inconsistent field name `data` vs `outdata`** — The ValueError/Exception handler in `_run_module` (line ~194) writes `"data": outdata` while the OSError/IOError handler (line ~184) writes `"outdata": outdata`. These should use the same field name so consumers can rely on a known key.
 
-- [ ] Fix `failed` type: change `"failed": 1` to `"failed": True` in all error paths
-- [ ] Fix field name: change `"data"` to `"outdata"` in line 194 for consistency
-- [ ] Fix timeout path: write structured JSON result to job file when timeout kills the child
+3. **Timeout path produces no structured output** — When the watcher process detects timeout and kills the child (lines ~309-316), it calls `sys.exit(0)` without writing any result to the job file. The job file retains the initial `{"started": 1, "finished": 0}` status permanently — the caller sees "not finished" forever with no timeout signal.
 
-## Verification
+### Candidate fixes
 
-- `python -m pytest test/units/modules/test_async_wrapper.py::TestAsyncWrapper::test_run_module -x -v` passes
-- Visual inspection confirms all error paths use consistent types and field names
+1. **Change all `"failed": 1` to `"failed": True`** — Makes the type consistent across all error paths using boolean.
+
+2. **Change `"data"` to `"outdata"`** in the ValueError/Exception handler — Makes the field name consistent with the OSError/IOError handler.
+
+3. **Write a timeout result to the job file** — Before the watcher exits on timeout, write `{"failed": True, "msg": "timed out", "ansible_job_id": jid, "finished": 1}` to the job_path so callers see a definite timeout result instead of a perpetually-"started" status.
