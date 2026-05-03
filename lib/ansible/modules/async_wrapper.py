@@ -31,9 +31,31 @@ syslog.syslog(syslog.LOG_NOTICE, 'Invoked with %s' % " ".join(sys.argv[1:]))
 # pipe for communication between forked process and parent
 ipc_watcher, ipc_notifier = multiprocessing.Pipe()
 
+job_path = ''
+
 
 def notice(msg):
     syslog.syslog(syslog.LOG_NOTICE, msg)
+
+
+def end(res=None, exit_msg=0):
+    if res is not None:
+        print(json.dumps(res))
+    sys.stdout.flush()
+    sys.exit(exit_msg)
+
+
+def jwrite(info):
+    jfile = job_path + ".tmp"
+    tjob = open(jfile, "w")
+    try:
+        tjob.write(json.dumps(info))
+    except OSError as ex:
+        notice('failed to write to %r: %s' % (jfile, ex))
+        raise
+    finally:
+        tjob.close()
+        os.rename(jfile, job_path)
 
 
 def daemonize_self():
@@ -42,10 +64,10 @@ def daemonize_self():
         pid = os.fork()
         if pid > 0:
             # exit first parent
-            sys.exit(0)
+            end()
     except OSError:
         e = sys.exc_info()[1]
-        sys.exit("fork #1 failed: %d (%s)\n" % (e.errno, e.strerror))
+        end({'msg': "fork #1 failed: %d (%s)\n" % (e.errno, e.strerror), 'failed': True}, 1)
 
     # decouple from parent environment (does not chdir / to keep the directory context the same as for non async tasks)
     os.setsid()
@@ -56,10 +78,10 @@ def daemonize_self():
         pid = os.fork()
         if pid > 0:
             # print "Daemon PID %d" % pid
-            sys.exit(0)
+            end()
     except OSError:
         e = sys.exc_info()[1]
-        sys.exit("fork #2 failed: %d (%s)\n" % (e.errno, e.strerror))
+        end({'msg': "fork #2 failed: %d (%s)\n" % (e.errno, e.strerror), 'failed': True}, 1)
 
     dev_null = open('/dev/null', 'w')
     os.dup2(dev_null.fileno(), sys.stdin.fileno())
@@ -126,14 +148,12 @@ def _make_temp_dir(path):
             raise
 
 
-def _run_module(wrapped_cmd, jid, job_path):
+def _run_module(wrapped_cmd, jid, _job_path):
 
-    tmp_job_path = job_path + ".tmp"
-    jobfile = open(tmp_job_path, "w")
-    jobfile.write(json.dumps({"started": 1, "finished": 0, "ansible_job_id": jid}))
-    jobfile.close()
-    os.rename(tmp_job_path, job_path)
-    jobfile = open(tmp_job_path, "w")
+    global job_path
+    job_path = _job_path
+
+    jwrite({"started": 1, "finished": 0, "ansible_job_id": jid})
     result = {}
 
     # signal grandchild process started and isolated from being terminated
@@ -173,7 +193,7 @@ def _run_module(wrapped_cmd, jid, job_path):
 
         if stderr:
             result['stderr'] = stderr
-        jobfile.write(json.dumps(result))
+        jwrite(result)
 
     except (OSError, IOError):
         e = sys.exc_info()[1]
@@ -185,7 +205,7 @@ def _run_module(wrapped_cmd, jid, job_path):
             "stderr": stderr
         }
         result['ansible_job_id'] = jid
-        jobfile.write(json.dumps(result))
+        jwrite(result)
 
     except (ValueError, Exception):
         result = {
@@ -196,10 +216,7 @@ def _run_module(wrapped_cmd, jid, job_path):
             "msg": traceback.format_exc()
         }
         result['ansible_job_id'] = jid
-        jobfile.write(json.dumps(result))
-
-    jobfile.close()
-    os.rename(tmp_job_path, job_path)
+        jwrite(result)
 
 
 def main():
