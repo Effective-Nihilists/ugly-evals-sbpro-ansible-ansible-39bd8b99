@@ -174,6 +174,7 @@ def _run_module(wrapped_cmd, jid, job_path):
         if stderr:
             result['stderr'] = stderr
         jobfile.write(json.dumps(result))
+        return result
 
     except (OSError, IOError):
         e = sys.exc_info()[1]
@@ -186,6 +187,7 @@ def _run_module(wrapped_cmd, jid, job_path):
         }
         result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
+        return result
 
     except (ValueError, Exception):
         result = {
@@ -197,6 +199,7 @@ def _run_module(wrapped_cmd, jid, job_path):
         }
         result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
+        return result
 
     jobfile.close()
     os.rename(tmp_job_path, job_path)
