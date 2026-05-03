@@ -126,7 +126,8 @@ def _make_temp_dir(path):
             raise
 
 
-def _run_module(wrapped_cmd, jid, job_path):
+def _run_module(wrapped_cmd, jid):
+    job_path = sys.modules[__name__].job_path
 
     tmp_job_path = job_path + ".tmp"
     jobfile = open(tmp_job_path, "w")
@@ -171,6 +172,7 @@ def _run_module(wrapped_cmd, jid, job_path):
             module_warnings.extend(json_warnings)
             result['warnings'] = module_warnings
 
+        result['ansible_job_id'] = jid
         if stderr:
             result['stderr'] = stderr
         jobfile.write(json.dumps(result))
@@ -178,7 +180,7 @@ def _run_module(wrapped_cmd, jid, job_path):
     except (OSError, IOError):
         e = sys.exc_info()[1]
         result = {
-            "failed": 1,
+            "failed": True,
             "cmd": wrapped_cmd,
             "msg": to_text(e),
             "outdata": outdata,  # temporary notice only
@@ -189,9 +191,9 @@ def _run_module(wrapped_cmd, jid, job_path):
 
     except (ValueError, Exception):
         result = {
-            "failed": 1,
+            "failed": True,
             "cmd": wrapped_cmd,
-            "data": outdata,  # temporary notice only
+            "outdata": outdata,  # temporary notice only
             "stderr": stderr,
             "msg": traceback.format_exc()
         }
@@ -238,7 +240,7 @@ def main():
         _make_temp_dir(jobdir)
     except Exception as e:
         print(json.dumps({
-            "failed": 1,
+            "failed": True,
             "msg": "could not create: %s - %s" % (jobdir, to_text(e)),
             "exception": to_text(traceback.format_exc()),
         }))
@@ -321,7 +323,8 @@ def main():
             else:
                 # the child process runs the actual module
                 notice("Start module (%s)" % os.getpid())
-                _run_module(cmd, jid, job_path)
+                sys.modules[__name__].job_path = job_path
+                _run_module(cmd, jid)
                 notice("Module complete (%s)" % os.getpid())
                 sys.exit(0)
 
