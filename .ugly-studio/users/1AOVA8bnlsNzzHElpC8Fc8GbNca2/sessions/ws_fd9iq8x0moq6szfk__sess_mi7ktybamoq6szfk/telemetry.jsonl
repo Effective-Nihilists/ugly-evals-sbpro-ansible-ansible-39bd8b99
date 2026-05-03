@@ -1,0 +1,1 @@
+{"ts":1777837943699,"sessionId":"sess_mi7ktybamoq6szfk","model":"deepinfra:openai/gpt-oss-120b","inputTokens":31252,"outputTokens":114,"cacheCreateTokens":0,"cacheReadTokens":0,"cost":0,"contextTokens":7809,"contextBudget":89006,"tokenBreakdown":{"systemPrompt":7525,"userMessages":272,"assistantMessages":8,"toolResults":{},"deduped":0,"compacted":0},"routing":{"source":"manual"}}
