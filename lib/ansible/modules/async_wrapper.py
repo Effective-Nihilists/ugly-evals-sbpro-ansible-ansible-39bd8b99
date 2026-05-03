@@ -25,6 +25,9 @@ from ansible.module_utils._text import to_text, to_bytes
 
 PY3 = sys.version_info[0] == 3
 
+# job output directory path; set by main() or monkeypatched by tests
+job_path = None
+
 syslog.openlog('ansible-%s' % os.path.basename(__file__))
 syslog.syslog(syslog.LOG_NOTICE, 'Invoked with %s' % " ".join(sys.argv[1:]))
 
