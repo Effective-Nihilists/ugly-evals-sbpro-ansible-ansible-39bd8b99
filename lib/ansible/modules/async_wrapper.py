@@ -186,10 +186,10 @@ def _run_module(wrapped_cmd, jid, job_path):
     except (OSError, IOError):
         e = sys.exc_info()[1]
         result = {
-            "failed": 1,
+            "failed": True,
             "cmd": wrapped_cmd,
             "msg": to_text(e),
-            "outdata": outdata,  # temporary notice only
+            "outdata": outdata,
             "stderr": stderr
         }
         result['ansible_job_id'] = jid
@@ -197,9 +197,9 @@ def _run_module(wrapped_cmd, jid, job_path):
 
     except (ValueError, Exception):
         result = {
-            "failed": 1,
+            "failed": True,
             "cmd": wrapped_cmd,
-            "data": outdata,  # temporary notice only
+            "outdata": outdata,
             "stderr": stderr,
             "msg": traceback.format_exc()
         }
