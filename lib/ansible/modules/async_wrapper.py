@@ -182,7 +182,8 @@ def _run_module(wrapped_cmd, jid, job_path):
             "cmd": wrapped_cmd,
             "msg": to_text(e),
             "outdata": outdata,  # temporary notice only
-            "stderr": stderr
+            "stderr": stderr,
+            "rc": 1  # Add rc field for consistency
         }
         result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
@@ -193,7 +194,8 @@ def _run_module(wrapped_cmd, jid, job_path):
             "cmd": wrapped_cmd,
             "data": outdata,  # temporary notice only
             "stderr": stderr,
-            "msg": traceback.format_exc()
+            "msg": traceback.format_exc(),
+            "rc": 1  # Add rc field for consistency
         }
         result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
