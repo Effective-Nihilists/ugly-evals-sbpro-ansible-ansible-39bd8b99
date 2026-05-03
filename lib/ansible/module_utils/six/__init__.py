@@ -31,7 +31,11 @@ import functools
 import itertools
 import operator
 import sys
+import os
 import types
+
+# Ensure package can find submodules like 'moves'
+__path__ = [os.path.dirname(__file__)]  # allow submodule imports
 
 # The following makes it easier for us to script updates of the bundled code.  It is not part of
 # upstream six
