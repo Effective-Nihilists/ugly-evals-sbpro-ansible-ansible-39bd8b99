@@ -183,11 +183,10 @@ def _run_module(wrapped_cmd, jid, job_path):
             "failed": 1,
             "cmd": wrapped_cmd,
             "msg": to_text(e),
-            "rc": script_rc,
+            "rc": 1,
             "ansible_job_id": jid,
         }
-        if stderr:
-            result['stderr'] = stderr
+        result['stderr'] = stderr
         jobfile.write(json.dumps(result))
 
     except (ValueError, Exception):
@@ -198,10 +197,8 @@ def _run_module(wrapped_cmd, jid, job_path):
             "rc": script_rc,
             "ansible_job_id": jid,
         }
-        if outdata:
-            result['outdata'] = outdata
-        if stderr:
-            result['stderr'] = stderr
+        result['outdata'] = outdata
+        result['stderr'] = stderr
         jobfile.write(json.dumps(result))
 
     jobfile.close()
