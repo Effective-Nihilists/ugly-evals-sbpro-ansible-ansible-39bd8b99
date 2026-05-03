@@ -952,7 +952,7 @@ def python_2_unicode_compatible(klass):
 # Complete the moves implementation.
 # This code is at the end of this module to speed up module loading.
 # Turn this module into a package.
-__path__ = []  # required for PEP 302 and PEP 451
+__path__ = [os.path.dirname(__file__)]  # allow submodule imports
 __package__ = __name__  # see PEP 366 @ReservedAssignment
 if globals().get("__spec__") is not None:
     __spec__.submodule_search_locations = []  # PEP 451 @UndefinedVariable
