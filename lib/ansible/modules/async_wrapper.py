@@ -178,24 +178,24 @@ def _run_module(wrapped_cmd, jid, job_path):
     except (OSError, IOError):
         e = sys.exc_info()[1]
         result = {
-            "failed": 1,
+            "failed": True,
             "cmd": wrapped_cmd,
             "msg": to_text(e),
             "outdata": outdata,  # temporary notice only
-            "stderr": stderr
+            "stderr": stderr,
+            "ansible_job_id": jid
         }
-        result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
 
     except (ValueError, Exception):
         result = {
-            "failed": 1,
+            "failed": True,
             "cmd": wrapped_cmd,
-            "data": outdata,  # temporary notice only
+            "outdata": outdata,  # temporary notice only
             "stderr": stderr,
-            "msg": traceback.format_exc()
+            "msg": traceback.format_exc(),
+            "ansible_job_id": jid
         }
-        result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
 
     jobfile.close()
@@ -238,9 +238,10 @@ def main():
         _make_temp_dir(jobdir)
     except Exception as e:
         print(json.dumps({
-            "failed": 1,
+            "failed": True,
             "msg": "could not create: %s - %s" % (jobdir, to_text(e)),
             "exception": to_text(traceback.format_exc()),
+            "ansible_job_id": jid
         }))
         sys.exit(1)
 
@@ -311,6 +312,19 @@ def main():
                         os.killpg(sub_pid, signal.SIGKILL)
                         notice("Sent kill to group %s " % sub_pid)
                         time.sleep(1)
+                        # Write structured timeout result to the job file
+                        try:
+                            tmp_job_path = job_path + ".tmp"
+                            with open(tmp_job_path, "w") as jf:
+                                jf.write(json.dumps({
+                                    "failed": True,
+                                    "msg": "timed out",
+                                    "ansible_job_id": jid,
+                                    "child_pid": sub_pid
+                                }))
+                            os.rename(tmp_job_path, job_path)
+                        except Exception:
+                            pass
                         if not preserve_tmp:
                             shutil.rmtree(os.path.dirname(wrapped_module), True)
                         sys.exit(0)
