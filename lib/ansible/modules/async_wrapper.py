@@ -191,7 +191,7 @@ def _run_module(wrapped_cmd, jid, job_path):
         result = {
             "failed": 1,
             "cmd": wrapped_cmd,
-            "data": outdata,  # temporary notice only
+            "outdata": outdata,  # temporary notice only
             "stderr": stderr,
             "msg": traceback.format_exc()
         }
@@ -335,7 +335,8 @@ def main():
         notice("error: %s" % e)
         print(json.dumps({
             "failed": True,
-            "msg": "FATAL ERROR: %s" % e
+            "msg": "FATAL ERROR: %s" % e,
+            "ansible_job_id": jid,
         }))
         sys.exit(1)
 
