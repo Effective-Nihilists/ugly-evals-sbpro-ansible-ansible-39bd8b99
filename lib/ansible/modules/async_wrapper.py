@@ -162,6 +162,10 @@ def _run_module(wrapped_cmd, jid, job_path):
         (filtered_outdata, json_warnings) = _filter_non_json_lines(outdata)
 
         result = json.loads(filtered_outdata)
+        # Ensure consistent result schema
+        result.setdefault('rc', 0)
+        result.setdefault('stderr', '')
+        result.setdefault('warnings', [])
 
         if json_warnings:
             # merge JSON junk warnings with any existing module warnings
@@ -184,6 +188,10 @@ def _run_module(wrapped_cmd, jid, job_path):
             "outdata": outdata,  # temporary notice only
             "stderr": stderr
         }
+        # Ensure consistent result schema for error paths
+        result.setdefault('rc', 0)
+        result.setdefault('stderr', '')
+        result.setdefault('warnings', [])
         result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
 
@@ -195,6 +203,10 @@ def _run_module(wrapped_cmd, jid, job_path):
             "stderr": stderr,
             "msg": traceback.format_exc()
         }
+        # Ensure consistent result schema for generic exception paths
+        result.setdefault('rc', 0)
+        result.setdefault('stderr', '')
+        result.setdefault('warnings', [])
         result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
 
