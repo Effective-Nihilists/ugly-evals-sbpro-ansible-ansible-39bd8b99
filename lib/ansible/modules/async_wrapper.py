@@ -144,6 +144,7 @@ def _run_module(wrapped_cmd, jid, job_path):
     outdata = ''
     filtered_outdata = ''
     stderr = ''
+    script_rc = 0
     try:
         cmd = [to_bytes(c, errors='surrogate_or_strict') for c in shlex.split(wrapped_cmd)]
         # call the module interpreter directly (for non-binary modules)
@@ -155,6 +156,7 @@ def _run_module(wrapped_cmd, jid, job_path):
                                   stderr=subprocess.PIPE)
 
         (outdata, stderr) = script.communicate()
+        script_rc = script.returncode
         if PY3:
             outdata = outdata.decode('utf-8', 'surrogateescape')
             stderr = stderr.decode('utf-8', 'surrogateescape')
@@ -181,21 +183,25 @@ def _run_module(wrapped_cmd, jid, job_path):
             "failed": 1,
             "cmd": wrapped_cmd,
             "msg": to_text(e),
-            "outdata": outdata,  # temporary notice only
-            "stderr": stderr
+            "rc": script_rc,
+            "ansible_job_id": jid,
         }
-        result['ansible_job_id'] = jid
+        if stderr:
+            result['stderr'] = stderr
         jobfile.write(json.dumps(result))
 
     except (ValueError, Exception):
         result = {
             "failed": 1,
             "cmd": wrapped_cmd,
-            "data": outdata,  # temporary notice only
-            "stderr": stderr,
-            "msg": traceback.format_exc()
+            "msg": traceback.format_exc(),
+            "rc": script_rc,
+            "ansible_job_id": jid,
         }
-        result['ansible_job_id'] = jid
+        if outdata:
+            result['outdata'] = outdata
+        if stderr:
+            result['stderr'] = stderr
         jobfile.write(json.dumps(result))
 
     jobfile.close()
