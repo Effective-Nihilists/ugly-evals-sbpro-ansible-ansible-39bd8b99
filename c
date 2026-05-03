@@ -1,0 +1,1 @@
+{"failed": 1, "cmd": "a", "msg": "[Errno 2] No such file or directory: b'a'", "outdata": "", "stderr": "", "ansible_job_id": "b"}
