@@ -173,6 +173,7 @@ def _run_module(wrapped_cmd, jid, job_path):
 
         if stderr:
             result['stderr'] = stderr
+        result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
 
     except (OSError, IOError):
@@ -191,7 +192,7 @@ def _run_module(wrapped_cmd, jid, job_path):
         result = {
             "failed": 1,
             "cmd": wrapped_cmd,
-            "data": outdata,  # temporary notice only
+            "outdata": outdata,  # temporary notice only
             "stderr": stderr,
             "msg": traceback.format_exc()
         }
