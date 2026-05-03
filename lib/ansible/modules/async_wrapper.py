@@ -151,7 +151,11 @@ def _run_module(wrapped_cmd, jid, job_path):
         # this permits use of a script for an interpreter on non-Linux platforms
         interpreter = _get_interpreter(cmd[0])
         if interpreter:
-            cmd = interpreter + cmd
+            # validate interpreter exists before using it
+            if os.path.exists(interpreter[0]):
+                cmd = interpreter + cmd
+            else:
+                cmd.insert(0, interpreter[0].decode('utf-8'))
         script = subprocess.Popen(cmd, shell=False, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE)
 
@@ -183,7 +187,7 @@ def _run_module(wrapped_cmd, jid, job_path):
             "failed": 1,
             "cmd": wrapped_cmd,
             "msg": to_text(e),
-            "rc": 1,
+            "rc": result.get('rc', 1),
             "ansible_job_id": jid,
         }
         result['stderr'] = stderr
