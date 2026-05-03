@@ -139,15 +139,6 @@ def _get_interpreter(module_path):
         return head[2:head.index(b'\n')].strip().split(b' ')
 
 
-def _make_temp_dir(path):
-    # TODO: Add checks for permissions on path.
-    try:
-        os.makedirs(path)
-    except OSError as e:
-        if e.errno != errno.EEXIST:
-            raise
-
-
 def _run_module(wrapped_cmd, jid, _job_path):
 
     global job_path
@@ -221,12 +212,11 @@ def _run_module(wrapped_cmd, jid, _job_path):
 
 def main():
     if len(sys.argv) < 5:
-        print(json.dumps({
+        end({
             "failed": True,
             "msg": "usage: async_wrapper <jid> <time_limit> <modulescript> <argsfile> [-preserve_tmp]  "
                    "Humans, do not call directly!"
-        }))
-        sys.exit(1)
+        }, 1)
 
     jid = "%s.%d" % (sys.argv[1], os.getpid())
     time_limit = sys.argv[2]
@@ -249,17 +239,23 @@ def main():
 
     # setup job output directory
     jobdir = os.path.expanduser(async_dir)
+    global job_path
     job_path = os.path.join(jobdir, jid)
 
     try:
-        _make_temp_dir(jobdir)
+        # TODO: Add checks for permissions on path.
+        os.makedirs(jobdir)
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            end({
+                "failed": True,
+                "msg": "could not create: %s - %s" % (jobdir, to_text(e))
+            }, 1)
     except Exception as e:
-        print(json.dumps({
-            "failed": 1,
-            "msg": "could not create: %s - %s" % (jobdir, to_text(e)),
-            "exception": to_text(traceback.format_exc()),
-        }))
-        sys.exit(1)
+        end({
+            "failed": True,
+            "msg": "could not create: %s - %s" % (jobdir, to_text(e))
+        }, 1)
 
     # immediately exit this process, leaving an orphaned process
     # running which immediately forks a supervisory timing process
@@ -289,10 +285,8 @@ def main():
                     continue
 
             notice("Return async_wrapper task started.")
-            print(json.dumps({"started": 1, "finished": 0, "ansible_job_id": jid, "results_file": job_path,
-                              "_ansible_suppress_tmpdir_delete": not preserve_tmp}))
-            sys.stdout.flush()
-            sys.exit(0)
+            end({"started": 1, "finished": 0, "ansible_job_id": jid, "results_file": job_path,
+                 "_ansible_suppress_tmpdir_delete": not preserve_tmp})
         else:
             # The actual wrapper process
 
@@ -324,6 +318,11 @@ def main():
                     time.sleep(step)
                     remaining = remaining - step
                     if remaining <= 0:
+                        # ensure we leave response in poll location
+                        res = {'msg': 'Timeout exceeded', 'failed': 1, 'child_pid': sub_pid}
+                        jwrite(res)
+
+                        # actually kill it
                         notice("Now killing %s" % (sub_pid))
                         os.killpg(sub_pid, signal.SIGKILL)
                         notice("Sent kill to group %s " % sub_pid)
@@ -350,11 +349,10 @@ def main():
     except Exception:
         e = sys.exc_info()[1]
         notice("error: %s" % e)
-        print(json.dumps({
+        end({
             "failed": True,
             "msg": "FATAL ERROR: %s" % e
-        }))
-        sys.exit(1)
+        }, 1)
 
 
 if __name__ == '__main__':
