@@ -45,7 +45,11 @@ def daemonize_self():
             sys.exit(0)
     except OSError:
         e = sys.exc_info()[1]
-        sys.exit("fork #1 failed: %d (%s)\n" % (e.errno, e.strerror))
+        print(json.dumps({
+            "failed": True,
+            "msg": "fork #1 failed: %d (%s)" % (e.errno, e.strerror),
+        }))
+        sys.exit(1)
 
     # decouple from parent environment (does not chdir / to keep the directory context the same as for non async tasks)
     os.setsid()
@@ -59,7 +63,11 @@ def daemonize_self():
             sys.exit(0)
     except OSError:
         e = sys.exc_info()[1]
-        sys.exit("fork #2 failed: %d (%s)\n" % (e.errno, e.strerror))
+        print(json.dumps({
+            "failed": True,
+            "msg": "fork #2 failed: %d (%s)" % (e.errno, e.strerror),
+        }))
+        sys.exit(1)
 
     dev_null = open('/dev/null', 'w')
     os.dup2(dev_null.fileno(), sys.stdin.fileno())
@@ -150,6 +158,9 @@ def _run_module(wrapped_cmd, jid, job_path):
         # this permits use of a script for an interpreter on non-Linux platforms
         interpreter = _get_interpreter(cmd[0])
         if interpreter:
+            # Fall back to the current Python interpreter if the shebang path does not exist
+            if not os.path.exists(to_bytes(interpreter[0], errors='surrogate_or_strict')):
+                interpreter = [sys.executable]
             cmd = interpreter + cmd
         script = subprocess.Popen(cmd, shell=False, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE)
@@ -349,7 +360,8 @@ def main():
         notice("error: %s" % e)
         print(json.dumps({
             "failed": True,
-            "msg": "FATAL ERROR: %s" % e
+            "msg": "FATAL ERROR: %s" % e,
+            "ansible_job_id": jid
         }))
         sys.exit(1)
 
