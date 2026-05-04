@@ -45,7 +45,10 @@ def daemonize_self():
             sys.exit(0)
     except OSError:
         e = sys.exc_info()[1]
-        sys.exit("fork #1 failed: %d (%s)\n" % (e.errno, e.strerror))
+        sys.exit(json.dumps({
+            "failed": True,
+            "msg": "fork #1 failed: %d (%s)" % (e.errno, e.strerror)
+        }))
 
     # decouple from parent environment (does not chdir / to keep the directory context the same as for non async tasks)
     os.setsid()
@@ -59,7 +62,10 @@ def daemonize_self():
             sys.exit(0)
     except OSError:
         e = sys.exc_info()[1]
-        sys.exit("fork #2 failed: %d (%s)\n" % (e.errno, e.strerror))
+        sys.exit(json.dumps({
+            "failed": True,
+            "msg": "fork #2 failed: %d (%s)" % (e.errno, e.strerror)
+        }))
 
     dev_null = open('/dev/null', 'w')
     os.dup2(dev_null.fileno(), sys.stdin.fileno())
@@ -178,7 +184,7 @@ def _run_module(wrapped_cmd, jid, job_path):
     except (OSError, IOError):
         e = sys.exc_info()[1]
         result = {
-            "failed": 1,
+            "failed": True,
             "cmd": wrapped_cmd,
             "msg": to_text(e),
             "outdata": outdata,  # temporary notice only
@@ -189,7 +195,7 @@ def _run_module(wrapped_cmd, jid, job_path):
 
     except (ValueError, Exception):
         result = {
-            "failed": 1,
+            "failed": True,
             "cmd": wrapped_cmd,
             "data": outdata,  # temporary notice only
             "stderr": stderr,
@@ -238,7 +244,7 @@ def main():
         _make_temp_dir(jobdir)
     except Exception as e:
         print(json.dumps({
-            "failed": 1,
+            "failed": True,
             "msg": "could not create: %s - %s" % (jobdir, to_text(e)),
             "exception": to_text(traceback.format_exc()),
         }))
@@ -313,6 +319,12 @@ def main():
                         time.sleep(1)
                         if not preserve_tmp:
                             shutil.rmtree(os.path.dirname(wrapped_module), True)
+                        print(json.dumps({
+                            "failed": True,
+                            "msg": "timed out",
+                            "ansible_job_id": jid,
+                            "child_pid": sub_pid
+                        }))
                         sys.exit(0)
                 notice("Done in kid B.")
                 if not preserve_tmp:
