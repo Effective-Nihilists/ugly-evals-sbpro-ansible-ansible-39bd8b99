@@ -235,6 +235,7 @@ def main():
 
     # setup job output directory
     jobdir = os.path.expanduser(async_dir)
+    global job_path
     job_path = os.path.join(jobdir, jid)
 
     try:
