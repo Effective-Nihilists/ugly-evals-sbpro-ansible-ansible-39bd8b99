@@ -246,7 +246,7 @@ def main():
         _make_temp_dir(jobdir)
     except Exception as e:
         print(json.dumps({
-            "failed": 1,
+            "failed": True,
             "msg": "could not create: %s - %s" % (jobdir, to_text(e)),
             "exception": to_text(traceback.format_exc()),
         }))
@@ -319,6 +319,12 @@ def main():
                         os.killpg(sub_pid, signal.SIGKILL)
                         notice("Sent kill to group %s " % sub_pid)
                         time.sleep(1)
+                        print(json.dumps({
+                            "failed": True,
+                            "msg": "timed out",
+                            "ansible_job_id": jid,
+                            "sub_pid": sub_pid
+                        }))
                         if not preserve_tmp:
                             shutil.rmtree(os.path.dirname(wrapped_module), True)
                         sys.exit(0)
