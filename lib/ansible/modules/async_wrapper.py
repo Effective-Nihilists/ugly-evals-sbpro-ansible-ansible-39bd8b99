@@ -64,7 +64,12 @@ def daemonize_self():
             sys.exit(0)
     except OSError:
         e = sys.exc_info()[1]
-        sys.exit("fork #2 failed: %d (%s)\n" % (e.errno, e.strerror))
+        print(json.dumps({
+            "failed": True,
+            "msg": "fork #2 failed: %d (%s)" % (e.errno, e.strerror),
+            "ansible_job_id": jid
+        }))
+        sys.exit(1)
 
     dev_null = open('/dev/null', 'w')
     os.dup2(dev_null.fileno(), sys.stdin.fileno())
@@ -243,7 +248,7 @@ def main():
         _make_temp_dir(jobdir)
     except Exception as e:
         print(json.dumps({
-            "failed": 1,
+            "failed": True,
             "msg": "could not create: %s - %s" % (jobdir, to_text(e)),
             "exception": to_text(traceback.format_exc()),
         }))
