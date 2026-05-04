@@ -150,6 +150,8 @@ def _run_module(wrapped_cmd, jid, job_path):
         # this permits use of a script for an interpreter on non-Linux platforms
         interpreter = _get_interpreter(cmd[0])
         if interpreter:
+            # normalize interpreter to bytes so concatenation with cmd (bytes list) is type-consistent
+            interpreter = [to_bytes(i, errors='surrogate_or_strict') for i in interpreter]
             # fall back to sys.executable if the shebang interpreter doesn't exist,
             # e.g. /usr/bin/python on systems where it has been removed
             if not os.path.exists(interpreter[0]):
@@ -183,6 +185,7 @@ def _run_module(wrapped_cmd, jid, job_path):
         e = sys.exc_info()[1]
         result = {
             "failed": 1,
+            "rc": 1,
             "cmd": wrapped_cmd,
             "msg": to_text(e),
             "outdata": outdata,  # temporary notice only
@@ -194,6 +197,7 @@ def _run_module(wrapped_cmd, jid, job_path):
     except (ValueError, Exception):
         result = {
             "failed": 1,
+            "rc": 1,
             "cmd": wrapped_cmd,
             "data": outdata,  # temporary notice only
             "stderr": stderr,
