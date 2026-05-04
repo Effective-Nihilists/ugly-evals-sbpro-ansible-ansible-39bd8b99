@@ -126,7 +126,7 @@ def _make_temp_dir(path):
             raise
 
 
-def _run_module(wrapped_cmd, jid):
+def _run_module(wrapped_cmd, jid, job_path):
 
     tmp_job_path = job_path + ".tmp"
     jobfile = open(tmp_job_path, "w")
@@ -321,7 +321,7 @@ def main():
             else:
                 # the child process runs the actual module
                 notice("Start module (%s)" % os.getpid())
-                _run_module(cmd, jid)
+                _run_module(cmd, jid, job_path)
                 notice("Module complete (%s)" % os.getpid())
                 sys.exit(0)
 
