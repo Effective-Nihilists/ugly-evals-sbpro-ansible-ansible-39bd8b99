@@ -34,6 +34,7 @@ ipc_watcher, ipc_notifier = multiprocessing.Pipe()
 # path to the async job result file
 job_path = None
 
+
 def notice(msg):
     syslog.syslog(syslog.LOG_NOTICE, msg)
 
@@ -205,6 +206,8 @@ def _run_module(wrapped_cmd, jid):
 
 
 def main():
+    global job_path
+
     if len(sys.argv) < 5:
         print(json.dumps({
             "failed": True,
@@ -246,8 +249,8 @@ def main():
         }))
         sys.exit(1)
 
-    # immediately exit this process, leaving an orphaned process
-    # running which immediately forks a supervisory timing process
+    # immediately exit this process, leaving an orphaned process running
+    # which immediately forks a supervisory timing process
 
     try:
         pid = os.fork()
