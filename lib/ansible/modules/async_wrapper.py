@@ -45,7 +45,12 @@ def daemonize_self():
             sys.exit(0)
     except OSError:
         e = sys.exc_info()[1]
-        sys.exit("fork #1 failed: %d (%s)\n" % (e.errno, e.strerror))
+        print(json.dumps({
+            "failed": True,
+            "msg": "fork #1 failed: %d (%s)" % (e.errno, e.strerror),
+            "ansible_job_id": jid
+        }))
+        sys.exit(1)
 
     # decouple from parent environment (does not chdir / to keep the directory context the same as for non async tasks)
     os.setsid()
