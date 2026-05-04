@@ -126,14 +126,26 @@ def _make_temp_dir(path):
             raise
 
 
+def _write_jobfile(job_path, jid, result):
+    """Write a canonical result dict to the job file.
+
+    Ensures every result dict includes standard fields before writing.
+    """
+    result['started'] = 1
+    result['finished'] = 1
+    result['ansible_job_id'] = jid
+    tmp_job_path = job_path + ".tmp"
+    with open(tmp_job_path, "w") as f:
+        f.write(json.dumps(result))
+    os.rename(tmp_job_path, job_path)
+
+
 def _run_module(wrapped_cmd, jid, job_path):
 
     tmp_job_path = job_path + ".tmp"
-    jobfile = open(tmp_job_path, "w")
-    jobfile.write(json.dumps({"started": 1, "finished": 0, "ansible_job_id": jid}))
-    jobfile.close()
+    with open(tmp_job_path, "w") as f:
+        f.write(json.dumps({"started": 1, "finished": 0, "ansible_job_id": jid}))
     os.rename(tmp_job_path, job_path)
-    jobfile = open(tmp_job_path, "w")
     result = {}
 
     # signal grandchild process started and isolated from being terminated
@@ -173,33 +185,27 @@ def _run_module(wrapped_cmd, jid, job_path):
 
         if stderr:
             result['stderr'] = stderr
-        jobfile.write(json.dumps(result))
 
     except (OSError, IOError):
         e = sys.exc_info()[1]
         result = {
-            "failed": 1,
+            "failed": True,
             "cmd": wrapped_cmd,
             "msg": to_text(e),
             "outdata": outdata,  # temporary notice only
             "stderr": stderr
         }
-        result['ansible_job_id'] = jid
-        jobfile.write(json.dumps(result))
 
     except (ValueError, Exception):
         result = {
-            "failed": 1,
+            "failed": True,
             "cmd": wrapped_cmd,
             "data": outdata,  # temporary notice only
             "stderr": stderr,
             "msg": traceback.format_exc()
         }
-        result['ansible_job_id'] = jid
-        jobfile.write(json.dumps(result))
 
-    jobfile.close()
-    os.rename(tmp_job_path, job_path)
+    _write_jobfile(job_path, jid, result)
 
 
 def main():
@@ -238,7 +244,7 @@ def main():
         _make_temp_dir(jobdir)
     except Exception as e:
         print(json.dumps({
-            "failed": 1,
+            "failed": True,
             "msg": "could not create: %s - %s" % (jobdir, to_text(e)),
             "exception": to_text(traceback.format_exc()),
         }))
