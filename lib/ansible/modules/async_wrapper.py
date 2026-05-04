@@ -321,7 +321,7 @@ def main():
             else:
                 # the child process runs the actual module
                 notice("Start module (%s)" % os.getpid())
-                _run_module(cmd, jid, job_path)
+                _run_module(cmd, jid)
                 notice("Module complete (%s)" % os.getpid())
                 sys.exit(0)
 
