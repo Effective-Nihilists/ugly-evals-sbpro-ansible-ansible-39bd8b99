@@ -31,6 +31,9 @@ syslog.syslog(syslog.LOG_NOTICE, 'Invoked with %s' % " ".join(sys.argv[1:]))
 # pipe for communication between forked process and parent
 ipc_watcher, ipc_notifier = multiprocessing.Pipe()
 
+# Module-level job_path for async job results
+job_path = None
+
 
 def notice(msg):
     syslog.syslog(syslog.LOG_NOTICE, msg)
@@ -126,7 +129,7 @@ def _make_temp_dir(path):
             raise
 
 
-def _run_module(wrapped_cmd, jid, job_path):
+def _run_module(wrapped_cmd, jid):
 
     tmp_job_path = job_path + ".tmp"
     jobfile = open(tmp_job_path, "w")
