@@ -25,6 +25,9 @@ from ansible.module_utils._text import to_text, to_bytes
 
 PY3 = sys.version_info[0] == 3
 
+# Module-level job_path for async operations
+job_path = None
+
 syslog.openlog('ansible-%s' % os.path.basename(__file__))
 syslog.syslog(syslog.LOG_NOTICE, 'Invoked with %s' % " ".join(sys.argv[1:]))
 
@@ -126,7 +129,12 @@ def _make_temp_dir(path):
             raise
 
 
-def _run_module(wrapped_cmd, jid, job_path):
+def _run_module(wrapped_cmd, jid, job_path=None):
+    global job_path
+    if job_path is None:
+        job_path = globals().get('job_path')
+    if job_path is None:
+        job_path = _job_path
 
     tmp_job_path = job_path + ".tmp"
     jobfile = open(tmp_job_path, "w")
