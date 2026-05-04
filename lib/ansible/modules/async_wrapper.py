@@ -31,6 +31,9 @@ syslog.syslog(syslog.LOG_NOTICE, 'Invoked with %s' % " ".join(sys.argv[1:]))
 # pipe for communication between forked process and parent
 ipc_watcher, ipc_notifier = multiprocessing.Pipe()
 
+# module-level job_path for writing async result files (set by main, read by _run_module)
+job_path = None
+
 
 def notice(msg):
     syslog.syslog(syslog.LOG_NOTICE, msg)
@@ -126,7 +129,8 @@ def _make_temp_dir(path):
             raise
 
 
-def _run_module(wrapped_cmd, jid, job_path):
+def _run_module(wrapped_cmd, jid):
+    global job_path
 
     tmp_job_path = job_path + ".tmp"
     jobfile = open(tmp_job_path, "w")
@@ -321,7 +325,8 @@ def main():
             else:
                 # the child process runs the actual module
                 notice("Start module (%s)" % os.getpid())
-                _run_module(cmd, jid, job_path)
+                globals()['job_path'] = job_path
+                _run_module(cmd, jid)
                 notice("Module complete (%s)" % os.getpid())
                 sys.exit(0)
 
