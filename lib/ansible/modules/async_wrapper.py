@@ -323,7 +323,13 @@ def main():
                         time.sleep(1)
                         if not preserve_tmp:
                             shutil.rmtree(os.path.dirname(wrapped_module), True)
-                        sys.exit(0)
+                        print(json.dumps({
+                            "failed": True,
+                            "msg": "timed out",
+                            "ansible_job_id": jid,
+                            "child_pid": sub_pid
+                        }))
+                        sys.exit(1)
                 notice("Done in kid B.")
                 if not preserve_tmp:
                     shutil.rmtree(os.path.dirname(wrapped_module), True)
