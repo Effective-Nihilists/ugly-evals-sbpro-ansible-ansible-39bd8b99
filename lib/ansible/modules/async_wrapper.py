@@ -162,6 +162,8 @@ def _run_module(wrapped_cmd, jid, job_path):
         (filtered_outdata, json_warnings) = _filter_non_json_lines(outdata)
 
         result = json.loads(filtered_outdata)
+        result['ansible_job_id'] = jid
+        result['finished'] = 1
 
         if json_warnings:
             # merge JSON junk warnings with any existing module warnings
@@ -171,31 +173,32 @@ def _run_module(wrapped_cmd, jid, job_path):
             module_warnings.extend(json_warnings)
             result['warnings'] = module_warnings
 
-        if stderr:
-            result['stderr'] = stderr
+        result['stderr'] = stderr
         jobfile.write(json.dumps(result))
 
     except (OSError, IOError):
         e = sys.exc_info()[1]
         result = {
-            "failed": 1,
+            "failed": True,
             "cmd": wrapped_cmd,
             "msg": to_text(e),
             "outdata": outdata,  # temporary notice only
-            "stderr": stderr
+            "stderr": stderr,
+            "ansible_job_id": jid,
+            "finished": 1,
         }
-        result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
 
     except (ValueError, Exception):
         result = {
-            "failed": 1,
+            "failed": True,
             "cmd": wrapped_cmd,
-            "data": outdata,  # temporary notice only
+            "outdata": outdata,  # temporary notice only
             "stderr": stderr,
-            "msg": traceback.format_exc()
+            "msg": traceback.format_exc(),
+            "ansible_job_id": jid,
+            "finished": 1,
         }
-        result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
 
     jobfile.close()
