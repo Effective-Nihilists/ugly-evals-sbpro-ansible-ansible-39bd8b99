@@ -321,6 +321,7 @@ def main():
                         time.sleep(1)
                         result = {
                             "failed": True,
+                            "finished": 1,
                             "msg": "timed out (time_limit=%s)" % time_limit,
                             "ansible_job_id": jid,
                         }
