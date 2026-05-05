@@ -126,6 +126,49 @@ def _make_temp_dir(path):
             raise
 
 
+def _finalize_result(result, job_path=None, exit_code=0):
+    """Normalise a result dictionary with canonical keys, write to the async
+    job-status file when *job_path* is given, print the JSON to stdout, and
+    exit with *exit_code*.
+
+    Canonical keys that are always included::
+
+        ansible_job_id, started (1), finished (1)
+
+    ``failed`` (True) is included whenever the current result contains a
+    truthy ``failed`` value (whether 1 or True).
+    """
+    # Python 2 compatibility: use exc_info directly
+    canonical = {
+        'started': 1,
+        'finished': 1,
+        'ansible_job_id': result.get('ansible_job_id', ''),
+    }
+    # Include 'failed' whenever the caller set it (whether 1 or True).
+    if result.get('failed'):
+        canonical['failed'] = True
+    # Merge the caller's fields on top of (and after) the canonical ones so
+    # the caller always wins for user-facing keys (rc, msg, stderr, …).
+    canonical.update(result)
+    # Re-assert the canonical values in case the caller's dict overrode them.
+    canonical['started'] = 1
+    canonical['finished'] = 1
+    if 'ansible_job_id' in result:
+        canonical['ansible_job_id'] = result['ansible_job_id']
+
+    if job_path:
+        tmp_job_path = job_path + '.tmp'
+        try:
+            with open(tmp_job_path, 'w') as f:
+                f.write(json.dumps(canonical))
+            os.rename(tmp_job_path, job_path)
+        except (OSError, IOError):
+            pass
+
+    print(json.dumps(canonical))
+    sys.exit(exit_code)
+
+
 def _run_module(wrapped_cmd, jid, job_path):
 
     tmp_job_path = job_path + ".tmp"
@@ -173,6 +216,8 @@ def _run_module(wrapped_cmd, jid, job_path):
 
         if stderr:
             result['stderr'] = stderr
+
+        result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
 
     except (OSError, IOError):
@@ -182,9 +227,9 @@ def _run_module(wrapped_cmd, jid, job_path):
             "cmd": wrapped_cmd,
             "msg": to_text(e),
             "outdata": outdata,  # temporary notice only
-            "stderr": stderr
+            "stderr": stderr,
+            "ansible_job_id": jid,
         }
-        result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
 
     except (ValueError, Exception):
@@ -193,9 +238,9 @@ def _run_module(wrapped_cmd, jid, job_path):
             "cmd": wrapped_cmd,
             "data": outdata,  # temporary notice only
             "stderr": stderr,
-            "msg": traceback.format_exc()
+            "msg": traceback.format_exc(),
+            "ansible_job_id": jid,
         }
-        result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
 
     jobfile.close()
@@ -204,12 +249,11 @@ def _run_module(wrapped_cmd, jid, job_path):
 
 def main():
     if len(sys.argv) < 5:
-        print(json.dumps({
+        _finalize_result({
             "failed": True,
             "msg": "usage: async_wrapper <jid> <time_limit> <modulescript> <argsfile> [-preserve_tmp]  "
-                   "Humans, do not call directly!"
-        }))
-        sys.exit(1)
+                   "Humans, do not call directly!",
+        }, exit_code=1)
 
     jid = "%s.%d" % (sys.argv[1], os.getpid())
     time_limit = sys.argv[2]
@@ -237,12 +281,12 @@ def main():
     try:
         _make_temp_dir(jobdir)
     except Exception as e:
-        print(json.dumps({
-            "failed": 1,
+        _finalize_result({
+            "failed": True,
+            "ansible_job_id": jid,
             "msg": "could not create: %s - %s" % (jobdir, to_text(e)),
             "exception": to_text(traceback.format_exc()),
-        }))
-        sys.exit(1)
+        }, exit_code=1)
 
     # immediately exit this process, leaving an orphaned process
     # running which immediately forks a supervisory timing process
@@ -313,7 +357,10 @@ def main():
                         time.sleep(1)
                         if not preserve_tmp:
                             shutil.rmtree(os.path.dirname(wrapped_module), True)
-                        sys.exit(0)
+                        _finalize_result({
+                            "ansible_job_id": jid,
+                            "msg": "timed out killing %s" % sub_pid,
+                        }, exit_code=0)
                 notice("Done in kid B.")
                 if not preserve_tmp:
                     shutil.rmtree(os.path.dirname(wrapped_module), True)
@@ -333,11 +380,11 @@ def main():
     except Exception:
         e = sys.exc_info()[1]
         notice("error: %s" % e)
-        print(json.dumps({
+        _finalize_result({
             "failed": True,
-            "msg": "FATAL ERROR: %s" % e
-        }))
-        sys.exit(1)
+            "ansible_job_id": jid,
+            "msg": "FATAL ERROR: %s" % e,
+        }, exit_code=1)
 
 
 if __name__ == '__main__':
