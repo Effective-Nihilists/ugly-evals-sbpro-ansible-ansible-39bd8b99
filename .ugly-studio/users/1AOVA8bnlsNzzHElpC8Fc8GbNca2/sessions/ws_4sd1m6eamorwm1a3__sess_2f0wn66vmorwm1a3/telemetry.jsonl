@@ -1,0 +1,1 @@
+{"ts":1777941753043,"sessionId":"sess_2f0wn66vmorwm1a3","model":"qwen3_6_coder_30b_a3b","inputTokens":17460,"outputTokens":58,"cacheCreateTokens":0,"cacheReadTokens":0,"cost":0.0070536,"contextTokens":8603,"contextBudget":187288,"tokenBreakdown":{"systemPrompt":8431,"userMessages":170,"assistantMessages":0,"toolResults":{},"deduped":0,"compacted":0},"routing":{"source":"manual"}}
