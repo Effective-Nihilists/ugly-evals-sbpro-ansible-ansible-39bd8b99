@@ -129,11 +129,13 @@ def _make_temp_dir(path):
 def _run_module(wrapped_cmd, jid, job_path):
 
     tmp_job_path = job_path + ".tmp"
-    jobfile = open(tmp_job_path, "w")
-    jobfile.write(json.dumps({"started": 1, "finished": 0, "ansible_job_id": jid}))
-    jobfile.close()
+    # Write initial status
+    with open(tmp_job_path, "w") as jobfile:
+        jobfile.write(json.dumps({"started": 1, "finished": 0, "ansible_job_id": jid}))
     os.rename(tmp_job_path, job_path)
-    jobfile = open(tmp_job_path, "w")
+    
+    # Open a new temp file for final result
+    tmp_job_path = job_path + ".tmp"
     result = {}
 
     # signal grandchild process started and isolated from being terminated
