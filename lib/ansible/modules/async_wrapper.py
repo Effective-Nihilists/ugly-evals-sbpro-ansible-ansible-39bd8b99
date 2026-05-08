@@ -200,6 +200,8 @@ def _run_module(wrapped_cmd, jid, job_path):
 
     jobfile.close()
     os.rename(tmp_job_path, job_path)
+    return result
+
 
 
 def main():
