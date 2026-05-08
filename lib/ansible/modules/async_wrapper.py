@@ -173,6 +173,7 @@ def _run_module(wrapped_cmd, jid, job_path):
 
         if stderr:
             result['stderr'] = stderr
+        result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
 
     except (OSError, IOError):
@@ -181,7 +182,7 @@ def _run_module(wrapped_cmd, jid, job_path):
             "failed": 1,
             "cmd": wrapped_cmd,
             "msg": to_text(e),
-            "outdata": outdata,  # temporary notice only
+            "data": outdata,  # temporary notice only
             "stderr": stderr
         }
         result['ansible_job_id'] = jid
@@ -205,7 +206,8 @@ def _run_module(wrapped_cmd, jid, job_path):
 def main():
     if len(sys.argv) < 5:
         print(json.dumps({
-            "failed": True,
+            "failed": 1,
+            "ansible_job_id": "unknown",
             "msg": "usage: async_wrapper <jid> <time_limit> <modulescript> <argsfile> [-preserve_tmp]  "
                    "Humans, do not call directly!"
         }))
@@ -239,6 +241,7 @@ def main():
     except Exception as e:
         print(json.dumps({
             "failed": 1,
+            "ansible_job_id": jid,
             "msg": "could not create: %s - %s" % (jobdir, to_text(e)),
             "exception": to_text(traceback.format_exc()),
         }))
@@ -311,6 +314,13 @@ def main():
                         os.killpg(sub_pid, signal.SIGKILL)
                         notice("Sent kill to group %s " % sub_pid)
                         time.sleep(1)
+                        with open(job_path, 'w') as jobfile:
+                            jobfile.write(json.dumps({
+                                "failed": 1,
+                                "msg": "Timeout (%s seconds) reached" % time_limit,
+                                "ansible_job_id": jid,
+                                "child_pid": sub_pid,
+                            }))
                         if not preserve_tmp:
                             shutil.rmtree(os.path.dirname(wrapped_module), True)
                         sys.exit(0)
@@ -334,7 +344,8 @@ def main():
         e = sys.exc_info()[1]
         notice("error: %s" % e)
         print(json.dumps({
-            "failed": True,
+            "failed": 1,
+            "ansible_job_id": jid,
             "msg": "FATAL ERROR: %s" % e
         }))
         sys.exit(1)
