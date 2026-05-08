@@ -45,7 +45,11 @@ def daemonize_self():
             sys.exit(0)
     except OSError:
         e = sys.exc_info()[1]
-        sys.exit("fork #1 failed: %d (%s)\n" % (e.errno, e.strerror))
+        sys.stderr.write(json.dumps({
+            "failed": True,
+            "msg": "fork #1 failed: %d (%s)" % (e.errno, e.strerror),
+        }))
+        sys.exit(1)
 
     # decouple from parent environment (does not chdir / to keep the directory context the same as for non async tasks)
     os.setsid()
@@ -59,7 +63,11 @@ def daemonize_self():
             sys.exit(0)
     except OSError:
         e = sys.exc_info()[1]
-        sys.exit("fork #2 failed: %d (%s)\n" % (e.errno, e.strerror))
+        sys.stderr.write(json.dumps({
+            "failed": True,
+            "msg": "fork #2 failed: %d (%s)" % (e.errno, e.strerror),
+        }))
+        sys.exit(1)
 
     dev_null = open('/dev/null', 'w')
     os.dup2(dev_null.fileno(), sys.stdin.fileno())
@@ -150,7 +158,8 @@ def _run_module(wrapped_cmd, jid, job_path):
         # this permits use of a script for an interpreter on non-Linux platforms
         interpreter = _get_interpreter(cmd[0])
         if interpreter:
-            cmd = interpreter + cmd
+            # ensure interpreter elements are bytes to match the rest of cmd
+            cmd = [to_bytes(x, errors='surrogate_or_strict') for x in interpreter] + cmd
         script = subprocess.Popen(cmd, shell=False, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE)
 
@@ -173,29 +182,30 @@ def _run_module(wrapped_cmd, jid, job_path):
 
         if stderr:
             result['stderr'] = stderr
+        result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
 
     except (OSError, IOError):
         e = sys.exc_info()[1]
         result = {
-            "failed": 1,
+            "failed": True,
             "cmd": wrapped_cmd,
             "msg": to_text(e),
             "outdata": outdata,  # temporary notice only
-            "stderr": stderr
+            "stderr": stderr,
+            "ansible_job_id": jid,
         }
-        result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
 
     except (ValueError, Exception):
         result = {
-            "failed": 1,
+            "failed": True,
             "cmd": wrapped_cmd,
             "data": outdata,  # temporary notice only
             "stderr": stderr,
-            "msg": traceback.format_exc()
+            "msg": traceback.format_exc(),
+            "ansible_job_id": jid,
         }
-        result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
 
     jobfile.close()
@@ -238,7 +248,7 @@ def main():
         _make_temp_dir(jobdir)
     except Exception as e:
         print(json.dumps({
-            "failed": 1,
+            "failed": True,
             "msg": "could not create: %s - %s" % (jobdir, to_text(e)),
             "exception": to_text(traceback.format_exc()),
         }))
@@ -311,6 +321,17 @@ def main():
                         os.killpg(sub_pid, signal.SIGKILL)
                         notice("Sent kill to group %s " % sub_pid)
                         time.sleep(1)
+                        # write a timeout result including the child PID to the job file
+                        result = {
+                            "failed": True,
+                            "msg": "async task did not complete within the requested time limit",
+                            "ansible_job_id": jid,
+                            "child_pid": sub_pid,
+                        }
+                        tmp_job_path = job_path + ".tmp"
+                        with open(tmp_job_path, "w") as timeout_jobfile:
+                            timeout_jobfile.write(json.dumps(result))
+                        os.rename(tmp_job_path, job_path)
                         if not preserve_tmp:
                             shutil.rmtree(os.path.dirname(wrapped_module), True)
                         sys.exit(0)
