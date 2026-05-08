@@ -182,20 +182,20 @@ def _run_module(wrapped_cmd, jid, job_path):
             "cmd": wrapped_cmd,
             "msg": to_text(e),
             "outdata": outdata,  # temporary notice only
-            "stderr": stderr
+            "stderr": stderr,
+            "ansible_job_id": jid
         }
-        result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
 
     except (ValueError, Exception):
         result = {
             "failed": 1,
             "cmd": wrapped_cmd,
-            "data": outdata,  # temporary notice only
+            "outdata": outdata,  # temporary notice only
             "stderr": stderr,
-            "msg": traceback.format_exc()
+            "msg": traceback.format_exc(),
+            "ansible_job_id": jid
         }
-        result['ansible_job_id'] = jid
         jobfile.write(json.dumps(result))
 
     jobfile.close()
@@ -205,7 +205,7 @@ def _run_module(wrapped_cmd, jid, job_path):
 def main():
     if len(sys.argv) < 5:
         print(json.dumps({
-            "failed": True,
+            "failed": 1,
             "msg": "usage: async_wrapper <jid> <time_limit> <modulescript> <argsfile> [-preserve_tmp]  "
                    "Humans, do not call directly!"
         }))
@@ -241,6 +241,7 @@ def main():
             "failed": 1,
             "msg": "could not create: %s - %s" % (jobdir, to_text(e)),
             "exception": to_text(traceback.format_exc()),
+            "ansible_job_id": jid
         }))
         sys.exit(1)
 
@@ -334,8 +335,9 @@ def main():
         e = sys.exc_info()[1]
         notice("error: %s" % e)
         print(json.dumps({
-            "failed": True,
-            "msg": "FATAL ERROR: %s" % e
+            "failed": 1,
+            "msg": "FATAL ERROR: %s" % e,
+            "ansible_job_id": jid
         }))
         sys.exit(1)
 
