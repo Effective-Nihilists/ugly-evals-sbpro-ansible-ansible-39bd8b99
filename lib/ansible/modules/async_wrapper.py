@@ -45,7 +45,7 @@ def daemonize_self():
             sys.exit(0)
     except OSError:
         e = sys.exc_info()[1]
-        sys.exit("fork #1 failed: %d (%s)\n" % (e.errno, e.strerror))
+        raise OSError("fork #1 failed: %d (%s)" % (e.errno, e.strerror))
 
     # decouple from parent environment (does not chdir / to keep the directory context the same as for non async tasks)
     os.setsid()
@@ -59,7 +59,7 @@ def daemonize_self():
             sys.exit(0)
     except OSError:
         e = sys.exc_info()[1]
-        sys.exit("fork #2 failed: %d (%s)\n" % (e.errno, e.strerror))
+        raise OSError("fork #2 failed: %d (%s)" % (e.errno, e.strerror))
 
     dev_null = open('/dev/null', 'w')
     os.dup2(dev_null.fileno(), sys.stdin.fileno())
@@ -240,6 +240,7 @@ def main():
         print(json.dumps({
             "failed": 1,
             "msg": "could not create: %s - %s" % (jobdir, to_text(e)),
+            "ansible_job_id": jid,
             "exception": to_text(traceback.format_exc()),
         }))
         sys.exit(1)
@@ -311,6 +312,16 @@ def main():
                         os.killpg(sub_pid, signal.SIGKILL)
                         notice("Sent kill to group %s " % sub_pid)
                         time.sleep(1)
+                        tmp_job_path = job_path + ".tmp"
+                        result = {
+                            "failed": 1,
+                            "msg": "async task timed out",
+                            "ansible_job_id": jid,
+                            "pid": sub_pid,
+                        }
+                        with open(tmp_job_path, "w") as jf:
+                            jf.write(json.dumps(result))
+                        os.rename(tmp_job_path, job_path)
                         if not preserve_tmp:
                             shutil.rmtree(os.path.dirname(wrapped_module), True)
                         sys.exit(0)
@@ -334,8 +345,9 @@ def main():
         e = sys.exc_info()[1]
         notice("error: %s" % e)
         print(json.dumps({
-            "failed": True,
-            "msg": "FATAL ERROR: %s" % e
+            "failed": 1,
+            "msg": "FATAL ERROR: %s" % e,
+            "ansible_job_id": jid,
         }))
         sys.exit(1)
 
